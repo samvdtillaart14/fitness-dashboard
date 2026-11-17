@@ -39,6 +39,21 @@
   .scores { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px; text-align: center; }
   .scores svg { max-width: 110px; margin: 0 auto; }
   .scores .lbl { margin-top: 6px; font-size: 11px; font-weight: 600; letter-spacing: .08em; color: var(--ink2); }
+  .scores a { color: inherit; text-decoration: none; border-radius: 16px; padding: 4px; }
+  .scores a:hover, .scores a:focus-visible { background: rgba(255,255,255,.05); }
+  [hidden] { display: none !important; }
+  #detail { margin-bottom: 14px; }
+  .back { text-decoration: none; color: var(--ink); }
+  .drow { display: grid; grid-template-columns: 140px 1fr; gap: 24px; align-items: center; }
+  .dparts { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+  .dp-h { display: flex; justify-content: space-between; }
+  .dparts .goal { margin: 4px 0; }
+  .grid:has(> .gauge[hidden]) { grid-template-columns: 1fr; }
+  /* Op een detailpagina vullen de overgebleven kaarten de hele breedte */
+  body.detail .top, body.detail .bottom { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  body.detail .card:not(#detail):not(.gauge) svg { max-height: 150px; } /* brede kaart: grafiek niet opblazen */
+  body.detail .top:not(:has(> :not([hidden]))), body.detail .bottom:not(:has(> :not([hidden]))) { display: none; }
+  @media (max-width: 600px) { .drow { grid-template-columns: 1fr; } #dRing svg { max-width: 140px; margin: 0 auto; } }
   .main { display: grid; gap: 14px; }
   .top { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
   .bottom { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
@@ -111,36 +126,42 @@
   </header>
 
   <section class="card scores" id="scores"></section>
+  <section class="card" id="detail" hidden>
+    <div class="card-h"><a href="#" class="pill back">← Terug</a><h2 id="dTitle"></h2></div>
+    <div class="drow"><div id="dRing"></div><ul id="dParts" class="dparts"></ul></div>
+    <div class="note" id="dTrendLbl" style="margin-top:14px"></div>
+    <svg id="dTrend"></svg>
+  </section>
 
   <div class="grid">
     <div class="main">
       <div class="top">
-        <section class="card">
+        <section class="card" data-cat="activiteit">
           <div class="card-h"><div class="icon">🏃</div><h2>Activiteit</h2><span class="sub">Vandaag</span></div>
           <div class="row"><div><div class="big" id="steps"></div><div class="note">👣 Stappen</div></div><svg id="act"></svg></div>
           <div class="goal"><i id="goalBar"></i></div>
           <div class="note" id="goalTxt"></div>
         </section>
-        <section class="card">
+        <section class="card" data-cat="slaap">
           <div class="card-h"><div class="icon">🛏️</div><h2>Slaap</h2><span class="sub per"></span></div>
           <div class="legend"><span><i style="background:var(--c1)"></i>Totaal</span><span><i style="background:var(--c2)"></i>Diep</span></div>
           <div class="row"><div><div class="big" id="sleep"></div><div class="note" id="sleepDelta"></div></div><svg id="sleepChart"></svg></div>
         </section>
-        <section class="card">
+        <section class="card" data-cat="herstel">
           <div class="card-h"><div class="icon">❤️</div><h2>Hart</h2><span class="sub per"></span></div>
           <div class="legend"><span><i style="background:var(--c2)"></i>Min–max</span><span><i style="background:var(--c1)"></i>Rust</span></div>
           <div class="row"><div><div class="big" id="rhr"></div><div class="note">♥ Rusthartslag</div></div><svg id="hrChart"></svg></div>
         </section>
       </div>
       <div class="bottom">
-        <section class="card">
+        <section class="card" data-cat="slaap">
           <div class="card-h"><h2>Slaapscore</h2><span class="sub per"></span></div>
           <div class="center"><div class="score" id="wScore"></div><div id="wLabel"></div><div class="note" id="wDelta"></div></div>
           <div class="legend" style="justify-content:center;margin-top:6px"><span><i style="background:var(--c1)"></i>Slaapscore</span><span><i style="background:var(--c2)"></i>Max Body Battery</span></div>
           <svg id="wChart"></svg>
           <div class="foot"><div><span class="sub">Slaap gem.</span><b id="sleepAvg"></b></div><div style="text-align:right"><span class="sub">Herstel</span><b id="recovery"></b></div></div>
         </section>
-        <section class="card">
+        <section class="card" data-cat="welzijn">
           <div class="card-h"><h2>Stress</h2><span class="sub">Vandaag</span></div>
           <div class="center"><div class="score" id="sScore"></div><div id="sLabel"></div><div class="note">Gemiddeld vandaag (0–100)</div></div>
           <svg id="sChart"></svg>
@@ -148,16 +169,16 @@
         </section>
       </div>
       <div class="top">
-        <section class="card">
+        <section class="card" data-cat="herstel slaap">
           <div class="card-h"><div class="icon">💓</div><h2>HRV</h2><span class="sub per"></span></div>
           <div class="legend"><span><i style="background:var(--c1)"></i>HRV per nacht</span><span><i style="background:var(--dim);height:8px"></i>Normaal bereik</span></div>
           <div class="row"><div><div class="big" id="hrv"></div><div class="note" id="hrvNote"></div></div><svg id="hrvChart"></svg></div>
         </section>
-        <section class="card">
+        <section class="card" data-cat="activiteit">
           <div class="card-h"><div class="icon">🫁</div><h2>VO2 max</h2><span class="sub">Laatste jaar</span></div>
           <div class="row"><div><div class="big" id="vo2"></div><div class="note" id="vo2Note"></div></div><svg id="vo2Chart"></svg></div>
         </section>
-        <section class="card">
+        <section class="card" data-cat="activiteit">
           <div class="card-h"><div class="icon">🏅</div><h2>Trainingen</h2><span class="sub">Km per maand</span></div>
           <div class="big" id="actTotal"></div>
           <svg id="monthChart"></svg>
@@ -166,7 +187,7 @@
       </div>
     </div>
 
-    <section class="card gauge">
+    <section class="card gauge" data-cat="herstel welzijn">
       <div class="sub">Body Battery</div>
       <svg id="gauge" viewBox="0 0 220 130"></svg>
       <div><h3 id="gText"></h3><div class="sub">Laatste meting vandaag</div></div>
@@ -217,40 +238,76 @@ function smooth(pts) {
 
 // Vier scores van 0–100 voor vandaag (t), berekend uit Garmin-data. all = alle opgehaalde dagen.
 const clamp = x => Math.max(0, Math.min(100, Math.round(x)));
-const wavg = parts => { parts = parts.filter(([x]) => x != null); const w = parts.reduce((s, [, w]) => s + w, 0); return w ? clamp(parts.reduce((s, [x, w]) => s + x * w, 0) / w) : null; };
+// Gewogen gemiddelde van onderdelen [naam, waarde, gewicht, ...]; ontbrekende waarden tellen niet mee
+const wavg = parts => { parts = parts.filter(([, x]) => x != null); const w = parts.reduce((s, [, , w]) => s + w, 0); return w ? clamp(parts.reduce((s, [, x, w]) => s + x * w, 0) / w) : null; };
+// Per score de onderdelen: [naam, deelscore 0–100, gewicht, ruwe waarde als tekst]
 function scores(t, all) {
-  const sleep = t.sleep_score ?? null;
-  // Herstel: Garmin Training Readiness als je horloge die heeft, anders zelf berekend
-  const rhrAvg = avg(all.slice(0, -1).map(d => d.rhr));
-  const recovery = t.readiness ?? wavg([
-    [t.bb_high, 2],
-    [t.hrv != null && t.hrv_low != null ? clamp((t.hrv - (t.hrv_low - 10)) / (t.hrv_high - t.hrv_low + 10) * 100) : null, 1],
-    [t.rhr != null && rhrAvg != null ? clamp(75 + (rhrAvg - t.rhr) * 10) : null, 1], // gemiddeld = 75, elke bpm lager +10
-  ]);
-  const activity = t.steps == null ? null : clamp(50 * Math.min(1, t.steps / (t.step_goal || 10000)) + 50 * Math.min(1, (t.int_min || 0) / (150 / 7)));
-  const wellness = wavg([[sleep, 1], [recovery, 1], [activity, 1], [t.stress != null ? 100 - t.stress : null, 1]]);
-  return { sleep, recovery, activity, wellness };
+  const rhrAvg = avg(all.filter(d => d.date < t.date).map(d => d.rhr));
+  const goal = t.step_goal || 10000, intGoal = 150 / 7;
+  const parts = {
+    sleep: [['Slaapscore van Garmin', t.sleep_score ?? null, 1, v(t.sleep_score)]],
+    // Herstel: Garmin Training Readiness als je horloge die heeft, anders zelf berekend
+    recovery: t.readiness != null ? [['Training Readiness van Garmin', t.readiness, 1, v(t.readiness)]] : [
+      ['Body Battery (hoogste)', t.bb_high ?? null, 2, v(t.bb_high, '%')],
+      ['HRV t.o.v. je normale bereik', t.hrv != null && t.hrv_low != null ? clamp((t.hrv - (t.hrv_low - 10)) / (t.hrv_high - t.hrv_low + 10) * 100) : null, 1,
+        `${v(t.hrv, ' ms')} (normaal ${v(t.hrv_low)}–${v(t.hrv_high)})`],
+      ['Rusthartslag t.o.v. gemiddelde', t.rhr != null && rhrAvg != null ? clamp(75 + (rhrAvg - t.rhr) * 10) : null, 1, // gemiddeld = 75, elke bpm lager +10
+        `${v(t.rhr, ' bpm')} (gem. ${rhrAvg == null ? '–' : Math.round(rhrAvg)})`],
+    ],
+    activity: t.steps == null ? [] : [
+      ['Stappen t.o.v. doel', clamp(100 * Math.min(1, t.steps / goal)), 1, `${t.steps.toLocaleString('nl-NL')} / ${goal.toLocaleString('nl-NL')}`],
+      ['Intensiteitsminuten t.o.v. 21/dag', clamp(100 * Math.min(1, (t.int_min || 0) / intGoal)), 1, `${t.int_min ?? 0} min`],
+    ],
+  };
+  const S = { sleep: wavg(parts.sleep), recovery: wavg(parts.recovery), activity: wavg(parts.activity) };
+  parts.wellness = [['Slaap', S.sleep, 1, v(S.sleep)], ['Herstel', S.recovery, 1, v(S.recovery)], ['Activiteit', S.activity, 1, v(S.activity)],
+    ['Rust (100 − stress)', t.stress != null ? 100 - t.stress : null, 1, `stress ${v(t.stress)}`]];
+  return { ...S, wellness: wavg(parts.wellness), parts };
 }
+
+const VIEWS = { slaap: ['Slaap', 'sleep'], herstel: ['Herstel', 'recovery'], activiteit: ['Activiteit', 'activity'], welzijn: ['Welzijn', 'wellness'] };
+const ring = (val, label) => {
+  const C = 2 * Math.PI * 42;
+  return `<svg viewBox="0 0 100 100" role="img" aria-label="${label} ${v(val)} van 100">
+    <circle cx="50" cy="50" r="42" fill="none" stroke="var(--dim)" stroke-width="9"/>
+    <circle cx="50" cy="50" r="42" fill="none" stroke="var(--c1)" stroke-width="9" stroke-linecap="round" transform="rotate(-90 50 50)" stroke-dasharray="${C * (val || 0) / 100} ${C}"/>
+    <text x="50" y="59" text-anchor="middle" style="fill:var(--ink);font-size:26px;font-weight:600">${v(val)}</text></svg>`;
+};
+
+// Detailpagina via #slaap, #herstel, ... (zo werkt de terugknop van je browser/telefoon ook)
+function route() {
+  const view = VIEWS[location.hash.slice(1)] ? location.hash.slice(1) : '';
+  $('scores').hidden = !!view; $('detail').hidden = !view;
+  document.body.classList.toggle('detail', !!view);
+  document.querySelectorAll('[data-cat]').forEach(c => c.hidden = !!view && !c.dataset.cat.split(' ').includes(view));
+  if (!view || !lastData) return;
+  const [name, key] = VIEWS[view], all = lastData.days, days = all.slice(-period), t = days[days.length - 1], S = scores(t, all);
+  $('dTitle').textContent = name;
+  $('dRing').innerHTML = ring(S[key], name);
+  const wsum = S.parts[key].filter(p => p[1] != null).reduce((s, p) => s + p[2], 0);
+  $('dParts').innerHTML = S.parts[key].map(([lbl, val, w, raw]) => `<li>
+      <div class="dp-h"><span>${lbl}</span><b>${v(val)}</b></div>
+      <div class="goal"><i style="width:${val || 0}%"></i></div>
+      <div class="sub">${raw}${val != null && S.parts[key].length > 1 ? ` · telt ${Math.round(w / wsum * 100)}% mee` : ''}</div></li>`).join('') || '<li class="sub">Nog geen data vandaag</li>';
+  const n = days.length, lab = (d, i) => n <= 7 ? wd(d.date) : (n - 1 - i) % 7 ? '' : +d.date.slice(8);
+  $('dTrendLbl').textContent = `${name}score per dag · laatste ${n} dagen`;
+  // Breedte meegroeien met het scherm, anders wordt de grafiek op de pc gigantisch
+  const W = Math.max(300, Math.round($('detail').clientWidth / 1.4));
+  $('dTrend').setAttribute('viewBox', `0 0 ${W} 90`);
+  $('dTrend').innerHTML = lines(days.map(d => ({ date: d.date, score: scores(d, all)[key] })), [['score', 'var(--c1)', ` ${name.toLowerCase()}`]], 0, 100, W, 90, lab);
+}
+addEventListener('hashchange', () => { route(); scrollTo(0, 0); });
 
 function render(D) {
   document.body.classList.remove("loading");
   lastData = D;
   const days = D.days.slice(-period), t = days[days.length - 1], n = days.length;
 
-  // Scores bovenin: ring per score, tik voor uitleg
-  const S = scores(t, D.days), C = 2 * Math.PI * 42;
-  $('scores').innerHTML = [
-    ['Slaap', S.sleep, 'Slaapscore van Garmin'],
-    ['Herstel', S.recovery, t.readiness != null ? 'Training Readiness van Garmin' : 'Body Battery (50%) + HRV t.o.v. normaal (25%) + rusthartslag t.o.v. gemiddelde (25%)'],
-    ['Activiteit', S.activity, `Stappen t.o.v. doel (50%) + intensiteitsminuten t.o.v. 21/dag (50%): ${v(t.int_min)} min`],
-    ['Welzijn', S.wellness, 'Gemiddelde van slaap, herstel, activiteit en rust (100 − stress)'],
-  ].map(([name, val, how]) => `<div><svg viewBox="0 0 100 100" role="img" aria-label="${name} ${v(val)} van 100">
-      <circle cx="50" cy="50" r="42" fill="none" stroke="var(--dim)" stroke-width="9"/>
-      <circle cx="50" cy="50" r="42" fill="none" stroke="var(--c1)" stroke-width="9" stroke-linecap="round" transform="rotate(-90 50 50)"
-        stroke-dasharray="${C * (val || 0) / 100} ${C}"/>
-      <text x="50" y="59" text-anchor="middle" style="fill:var(--ink);font-size:26px;font-weight:600">${v(val)}</text>
-      <circle cx="50" cy="50" r="50" fill="transparent"><title>${name}: ${how}</title></circle>
-    </svg><div class="lbl">${name.toUpperCase()}</div></div>`).join('');
+  // Scores bovenin: klik op een ring voor de detailpagina
+  const S = scores(t, D.days);
+  $('scores').innerHTML = Object.entries(VIEWS).map(([slug, [name, key]]) =>
+    `<a href="#${slug}">${ring(S[key], name)}<div class="lbl">${name.toUpperCase()} ›</div></a>`).join('');
+  route();
   // Bij 30 dagen alleen elke 7e dag een label (dagnummer), anders wordt het onleesbaar
   const lab = (d, i) => n <= 7 ? wd(d.date) : (n - 1 - i) % 7 ? '' : +d.date.slice(8);
   document.querySelectorAll('.seg button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.p === period));
