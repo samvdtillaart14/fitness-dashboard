@@ -28,7 +28,7 @@
   .wrap { max-width: 1240px; margin: 0 auto; padding: 24px 16px 40px; }
   header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
   .logo { width: 40px; height: 40px; border-radius: 50%; background: var(--c1); display: grid; place-items: center; font-weight: 800; font-size: 20px; }
-  header h1 { margin: 0; font-size: 22px; font-weight: 600; flex: 1; }
+  header .seg { margin-left: auto; } /* periode + verversen rechts, ☰ links */
   .pill { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 8px 14px; color: var(--ink2); font-size: 12px; backdrop-filter: blur(14px); }
   .pill.stale { color: var(--warn); border-color: var(--warn); }
   .seg { display: inline-flex; padding: 3px; gap: 2px; }
@@ -200,12 +200,9 @@
 <div class="wrap">
   <header>
     <button class="pill" id="menuBtn" type="button" aria-label="Menu openen">☰</button>
-    <h1 id="hello">Fitness</h1>
     <span class="pill seg" role="group" aria-label="Periode">
       <button data-p="7">7 dagen</button><button data-p="30">30 dagen</button>
     </span>
-    <span class="pill" id="range"></span>
-    <span class="pill" id="updated"></span>
     <button class="pill" id="refreshBtn" type="button">🔄 Verversen</button>
   </header>
 
@@ -505,14 +502,11 @@ function render(D) {
   const lab = (d, i) => n <= 7 ? wd(d.date) : (n - 1 - i) % 7 ? '' : +d.date.slice(8);
   document.querySelectorAll('.seg button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.p === period));
   document.querySelectorAll('.per').forEach(e => e.textContent = `Laatste ${n} dagen`);
-  $('hello').textContent = D.name ? `Hoi ${D.name.split(' ')[0]}` : 'Fitness';
-  $('range').textContent = `📅 ${days[0].date} – ${t.date}`;
 
-  // Waarschuwing als de data ouder is dan 2 uur (ophalen mislukt?)
+  // Data ouder dan 2 uur (ophalen mislukt?): de verversknop kleurt rood
   const stale = Date.now() - new Date(D.updated) > 2 * 3600e3;
-  $('updated').className = 'pill' + (stale ? ' stale' : '');
-  $('updated').textContent = `${stale ? '⚠ Verouderd: ' : 'Bijgewerkt '}${D.updated.replace('T', ' ')}`;
-  $('updated').title = stale ? 'Ophalen mislukt? Bekijk het tabblad Actions op github.com/samvdtillaart14/fitness-dashboard' : '';
+  $('refreshBtn').classList.toggle('stale', stale);
+  $('refreshBtn').title = stale ? `Data is verouderd (${D.updated.replace('T', ' ')}). Ophalen mislukt? Bekijk het tabblad Actions op GitHub.` : '';
 
   // Zijbalk vullen: score-badges, stappendoel-kaart, profiel
   document.querySelectorAll('#sbNav .badge').forEach(b => b.textContent = v(S[b.dataset.k]));
