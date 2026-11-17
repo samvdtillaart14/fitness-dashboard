@@ -177,6 +177,7 @@
     <a href="#herstel" data-v="herstel" data-tip="Herstel"><span class="ic">💓</span><span class="sb-txt">Herstel</span><b class="badge" data-k="recovery"></b></a>
     <a href="#activiteit" data-v="activiteit" data-tip="Activiteit"><span class="ic">🏃</span><span class="sb-txt">Activiteit</span><b class="badge" data-k="activity"></b></a>
     <a href="#welzijn" data-v="welzijn" data-tip="Welzijn"><span class="ic">🌿</span><span class="sb-txt">Welzijn</span><b class="badge" data-k="wellness"></b></a>
+    <a href="#agenda" data-v="agenda" data-tip="Agenda"><span class="ic">📅</span><span class="sb-txt">Agenda</span></a>
   </nav>
   <div class="sb-cta" id="sbCta"></div>
   <div class="sb-group sb-txt">Instellingen</div>
@@ -205,6 +206,10 @@
     <div class="drow"><div id="dRing"></div><ul id="dParts" class="dparts"></ul></div>
     <div class="note" id="dTrendLbl" style="margin-top:14px"></div>
     <svg id="dTrend"></svg>
+  </section>
+  <!-- Afspraken zijn alleen zichtbaar als je in deze browser bij Google bent ingelogd -->
+  <section class="card" id="agenda" hidden>
+    <iframe title="Google Agenda" src="https://calendar.google.com/calendar/embed?src=samvdtillaart%40gmail.com&ctz=Europe%2FAmsterdam" style="border:0;width:100%;height:75vh;border-radius:12px"></iframe>
   </section>
 
   <div class="grid">
@@ -398,12 +403,13 @@ const ring = (val, label) => {
 
 // Detailpagina via #slaap, #herstel, ... (zo werkt de terugknop van je browser/telefoon ook)
 function route() {
-  const view = VIEWS[location.hash.slice(1)] ? location.hash.slice(1) : '';
-  $('scores').hidden = !!view; $('detail').hidden = !view;
+  const h = location.hash.slice(1), view = VIEWS[h] || h === 'agenda' ? h : '', agenda = view === 'agenda';
+  $('scores').hidden = !!view; $('detail').hidden = !view || agenda;
+  $('agenda').hidden = !agenda; document.querySelector('.grid').hidden = agenda;
   document.body.classList.toggle('detail', !!view);
   document.querySelectorAll('#sbNav a').forEach(a => a.dataset.v === view ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current'));
   document.querySelectorAll('[data-cat]').forEach(c => c.hidden = !!view && !c.dataset.cat.split(' ').includes(view));
-  if (!view || !lastData) return;
+  if (!view || agenda || !lastData) return;
   const [name, key] = VIEWS[view], all = lastData.days, days = all.slice(-period), t = days[days.length - 1], S = scores(t, all);
   $('dTitle').textContent = name;
   $('dRing').innerHTML = ring(S[key], name);
@@ -436,7 +442,7 @@ addEventListener('touchend', e => {
   const cls = document.body.classList;
   if (Math.abs(dx) <= 80 || Math.abs(dy) >= Math.abs(dx) / 2 || cls.contains('locked') || cls.contains('loading')) return;
   if (cls.contains('sb-open')) setOpen(false);
-  else if (!$('detail').hidden) goBack();
+  else if (location.hash) goBack();
   else if (cls.contains('drawer')) setOpen(true);
 }, { passive: true });
 
