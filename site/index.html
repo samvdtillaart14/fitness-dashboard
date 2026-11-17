@@ -38,7 +38,7 @@
   .grid { display: grid; grid-template-columns: 3fr 1fr; gap: 14px; }
   .scores { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px; text-align: center; }
   .scores svg { max-width: 110px; margin: 0 auto; }
-  .scores .lbl { margin-top: 6px; font-size: 11px; font-weight: 600; letter-spacing: .08em; color: var(--ink2); }
+  .scores .lbl { margin-top: 6px; font-size: 11px; font-weight: 600; letter-spacing: .04em; color: var(--ink2); white-space: nowrap; }
   .scores a { color: inherit; text-decoration: none; border-radius: 16px; padding: 4px; }
   .scores a:hover, .scores a:focus-visible { background: rgba(255,255,255,.05); }
   [hidden] { display: none !important; }
@@ -54,6 +54,11 @@
   body.detail .card:not(#detail):not(.gauge) svg { max-height: 150px; } /* brede kaart: grafiek niet opblazen */
   body.detail .top:not(:has(> :not([hidden]))), body.detail .bottom:not(:has(> :not([hidden]))) { display: none; }
   @media (max-width: 600px) { .drow { grid-template-columns: 1fr; } #dRing svg { max-width: 140px; margin: 0 auto; } }
+  /* Mobiele weergave geforceerd via de knop (ook op de pc) */
+  body.mobile .wrap { max-width: 430px; }
+  body.mobile .grid, body.mobile .top, body.mobile .bottom, body.mobile .drow { grid-template-columns: 1fr; }
+  body.mobile #dRing svg { max-width: 140px; margin: 0 auto; }
+  #viewBtn { cursor: pointer; font: inherit; font-size: 12px; color: var(--ink); }
   .main { display: grid; gap: 14px; }
   .top { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
   .bottom { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
@@ -123,6 +128,7 @@
     </span>
     <span class="pill" id="range"></span>
     <span class="pill" id="updated"></span>
+    <button class="pill" id="viewBtn" type="button"></button>
   </header>
 
   <section class="card scores" id="scores"></section>
@@ -217,6 +223,24 @@ const avg = a => { a = a.filter(v => v != null); return a.length ? a.reduce((s, 
 const v = (x, suf = '') => x == null ? '–' : x + suf;
 const sign = n => (n >= 0 ? '+' : '') + n;
 const month = (d, opt = { month: 'short' }) => new Date(d).toLocaleDateString('nl-NL', opt);
+
+// Weergave pc/mobiel: start op wat bij het scherm past, keuze onthouden per apparaat.
+// PC-weergave op een telefoon = viewport 1280px breed, dan zoomt de telefoon uit naar de pc-indeling.
+const smallScreen = Math.min(screen.width, innerWidth) <= 900;
+let viewMode = smallScreen ? 'mobile' : 'pc';
+try { viewMode = localStorage.getItem('view') || viewMode; } catch {}
+function applyView() {
+  document.body.classList.toggle('mobile', viewMode === 'mobile');
+  document.querySelector('meta[name=viewport]').content = viewMode === 'pc' && smallScreen ? 'width=1280' : 'width=device-width, initial-scale=1';
+  $('viewBtn').textContent = viewMode === 'mobile' ? '🖥 PC-weergave' : '📱 Mobiele weergave';
+  $('viewBtn').setAttribute('aria-label', `Wissel naar ${viewMode === 'mobile' ? 'pc' : 'mobiele'} weergave`);
+  if (lastData) render(lastData); // grafieken die op breedte rekenen opnieuw tekenen
+}
+$('viewBtn').onclick = () => {
+  viewMode = viewMode === 'mobile' ? 'pc' : 'mobile';
+  try { localStorage.setItem('view', viewMode); } catch {}
+  applyView();
+};
 
 // Gekozen periode onthouden per browser (mag mislukken, dan gewoon 7)
 let period = 7, lastData = null;
@@ -524,6 +548,7 @@ const load = () => fetch('data.json', { cache: 'no-store' })
         return r2.json().then(enc => getPw() ? unlock(enc, getPw()) : askPw(enc));
       }))
   .catch(e => document.body.classList.remove("loading") || document.querySelector(".err") || document.querySelector('.wrap').insertAdjacentHTML('afterbegin', `<p class="err">Kon de data niet laden (${e.message}).</p>`));
+applyView();
 load();
 setInterval(load, 15 * 60 * 1000);
 </script>
