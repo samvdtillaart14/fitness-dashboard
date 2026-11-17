@@ -13,22 +13,26 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
-ITER = 250_000  # moet gelijk zijn aan ITER in site/index.html
+# Hoog, omdat een cijfercode weinig mogelijkheden heeft: maakt elke raadpoging duur.
+# Wordt in het bestand opgeslagen, dus de browser en oudere bestanden lezen altijd de juiste waarde.
+ITER = 1_000_000
 
 
-def _key(pw: str, salt: bytes) -> bytes:
-    return PBKDF2HMAC(hashes.SHA256(), 32, salt, ITER).derive(pw.encode())
+def _key(pw: str, salt: bytes, iters: int) -> bytes:
+    return PBKDF2HMAC(hashes.SHA256(), 32, salt, iters).derive(pw.encode())
 
 
 def encrypt(pw: str, data: bytes) -> str:
     salt, iv = os.urandom(16), os.urandom(12)
-    ct = AESGCM(_key(pw, salt)).encrypt(iv, data, None)
-    return json.dumps({k: base64.b64encode(v).decode() for k, v in {"salt": salt, "iv": iv, "ct": ct}.items()})
+    ct = AESGCM(_key(pw, salt, ITER)).encrypt(iv, data, None)
+    out = {k: base64.b64encode(v).decode() for k, v in {"salt": salt, "iv": iv, "ct": ct}.items()}
+    return json.dumps({**out, "iter": ITER})
 
 
 def decrypt(pw: str, text: str) -> bytes:
-    d = {k: base64.b64decode(v) for k, v in json.loads(text).items()}
-    return AESGCM(_key(pw, d["salt"])).decrypt(d["iv"], d["ct"], None)
+    raw = json.loads(text)
+    d = {k: base64.b64decode(raw[k]) for k in ("salt", "iv", "ct")}
+    return AESGCM(_key(pw, d["salt"], raw.get("iter", 250_000))).decrypt(d["iv"], d["ct"], None)
 
 
 if __name__ == "__main__":

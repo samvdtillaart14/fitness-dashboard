@@ -74,11 +74,28 @@
   .acts { list-style: none; margin: 10px 0 0; padding: 0; }
   .acts li { padding: 6px 0; border-top: 1px solid var(--line); font-size: 13px; }
   .acts .sub { display: block; font-size: 12px; color: var(--ink2); }
+  body.locked .wrap, body.loading .wrap { display: none; }
+  .goal i { width: 0; }
+  #lock { position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 16px; }
+  #lock[hidden] { display: none; }
+  #lock .logo { width: 56px; height: 56px; font-size: 26px; }
+  #lockMsg { font-size: 17px; }
+  #dots { display: flex; gap: 12px; height: 14px; align-items: center; }
+  #dots i { width: 12px; height: 12px; border-radius: 50%; background: var(--ink); }
+  #dots.shake { animation: shake .35s; }
+  @keyframes shake { 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+  #pad { display: grid; grid-template-columns: repeat(3, 76px); gap: 16px; margin-top: 10px; }
+  #pad button { width: 76px; height: 76px; border-radius: 50%; border: 1px solid var(--line); background: var(--card);
+    color: var(--ink); font: 500 28px system-ui, sans-serif; cursor: pointer; backdrop-filter: blur(14px); -webkit-tap-highlight-color: transparent; }
+  #pad button:active { background: var(--dim); }
+  #pad .ok { background: var(--c1); border-color: var(--c1); }
+  #lock.busy #pad { opacity: .4; }
+  @media (prefers-reduced-motion: reduce) { #dots.shake { animation: none; } }
   #tip { position: fixed; z-index: 9; pointer-events: none; background: var(--ink); color: var(--bg); font-size: 12px;
     padding: 5px 9px; border-radius: 8px; transform: translate(-50%, calc(-100% - 10px)); white-space: nowrap; }
 </style>
 </head>
-<body>
+<body class="loading">
 <div class="wrap">
   <header>
     <div class="logo">F</div>
@@ -152,6 +169,17 @@
   </div>
 </div>
 <div id="tip" hidden></div>
+<div id="lock" hidden role="dialog" aria-label="Vergrendeld">
+  <div class="logo">F</div>
+  <div id="lockMsg">Voer je code in</div>
+  <div id="dots" aria-live="polite"></div>
+  <div id="pad">
+    <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
+    <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button>
+    <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button>
+    <button data-k="del" aria-label="Wissen">⌫</button><button data-k="0">0</button><button data-k="ok" aria-label="Openen" class="ok">✓</button>
+  </div>
+</div>
 
 <script>
 // Elke grafiek is een SVG-string; <title> geeft de tooltip (hover op pc, tikken op telefoon).
@@ -183,6 +211,7 @@ function smooth(pts) {
 }
 
 function render(D) {
+  document.body.classList.remove("loading");
   lastData = D;
   const days = D.days.slice(-period), t = days[days.length - 1], n = days.length;
   // Bij 30 dagen alleen elke 7e dag een label (dagnummer), anders wordt het onleesbaar
@@ -337,28 +366,47 @@ document.addEventListener('click', e => {
 addEventListener('scroll', () => $('tip').hidden = true, { passive: true });
 
 // Online staat alleen data.enc (versleuteld); thuis data.json. Zelfde formaat als crypt.py.
-const ITER = 250000;
 const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
-async function decrypt(pw, { salt, iv, ct }) {
+async function decrypt(pw, { salt, iv, ct, iter = 250000 }) {
   const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveKey']);
-  const key = await crypto.subtle.deriveKey({ name: 'PBKDF2', hash: 'SHA-256', salt: b64(salt), iterations: ITER }, base, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+  const key = await crypto.subtle.deriveKey({ name: 'PBKDF2', hash: 'SHA-256', salt: b64(salt), iterations: iter }, base, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
   return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64(iv) }, key, b64(ct))));
 }
 const getPw = () => { try { return localStorage.getItem('pw'); } catch { return null; } };
+
+// Vergrendelscherm met cijferpaneel; het dashboard blijft verborgen tot de code klopt
+let lockEnc = null, code = '';
 function askPw(enc, wrong) {
-  $('pwForm')?.remove();
-  document.querySelector('.wrap').insertAdjacentHTML('afterbegin', `<form id="pwForm" class="card" style="margin-bottom:14px">
-    <label for="pw">${wrong ? '<span class="err">Verkeerd wachtwoord.</span> ' : ''}Wachtwoord voor je dashboard</label>
-    <div style="display:flex;gap:8px;margin-top:8px"><input id="pw" type="password" autocomplete="current-password" required style="flex:1;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink)">
-    <button class="pill" style="color:var(--ink)">Openen</button></div></form>`);
-  $('pwForm').onsubmit = e => { e.preventDefault(); unlock(enc, $('pw').value); };
+  lockEnc = enc; code = '';
+  document.body.classList.add('locked');
+  $('lock').hidden = false;
+  $('lockMsg').textContent = wrong ? 'Verkeerde code' : 'Voer je code in';
+  $('lockMsg').classList.toggle('err', !!wrong);
+  if (wrong) { $('dots').classList.remove('shake'); void $('dots').offsetWidth; $('dots').classList.add('shake'); }
+  showDots();
+}
+const showDots = () => $('dots').innerHTML = code ? '<i></i>'.repeat(code.length) : '<span class="sub">&nbsp;</span>';
+function press(k) {
+  if ($('lock').hidden || $('lock').classList.contains('busy')) return;
+  if (k === 'del') code = code.slice(0, -1);
+  else if (k === 'ok') { if (code) { $('lock').classList.add('busy'); $('lockMsg').textContent = 'Openen…'; unlock(lockEnc, code); } return; }
+  else if (code.length < 16) code += k;
+  showDots();
 }
 function unlock(enc, pw) {
   decrypt(pw, enc).then(D => {
     try { localStorage.setItem('pw', pw); } catch {}
-    $('pwForm')?.remove(); render(D);
-  }).catch(() => askPw(enc, true));
+    $('lock').hidden = true; document.body.classList.remove('locked'); render(D);
+  }).catch(() => askPw(enc, true))
+    .finally(() => $('lock').classList.remove('busy'));
 }
+document.querySelectorAll('#pad button').forEach(b => b.onclick = () => press(b.dataset.k));
+// Op de pc kun je ook met het toetsenbord typen
+addEventListener('keydown', e => {
+  if (/^[0-9]$/.test(e.key)) press(e.key);
+  else if (e.key === 'Backspace') press('del');
+  else if (e.key === 'Enter') press('ok');
+});
 
 // Data laden, en elke 15 minuten opnieuw (de data wordt elk uur ververst)
 const load = () => fetch('data.json', { cache: 'no-store' })
@@ -367,7 +415,7 @@ const load = () => fetch('data.json', { cache: 'no-store' })
         if (!r2.ok) throw new Error(r2.status);
         return r2.json().then(enc => getPw() ? unlock(enc, getPw()) : askPw(enc));
       }))
-  .catch(e => document.querySelector('.err') || document.querySelector('.wrap').insertAdjacentHTML('afterbegin', `<p class="err">Kon de data niet laden (${e.message}).</p>`));
+  .catch(e => document.body.classList.remove("loading") || document.querySelector(".err") || document.querySelector('.wrap').insertAdjacentHTML('afterbegin', `<p class="err">Kon de data niet laden (${e.message}).</p>`));
 load();
 setInterval(load, 15 * 60 * 1000);
 </script>

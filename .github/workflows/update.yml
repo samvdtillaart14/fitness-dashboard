@@ -35,7 +35,8 @@ jobs:
       - name: Tokens en vorige data ontsleutelen
         run: |
           python crypt.py dec TOKEN_KEY secrets/garmin_tokens.enc ~/.garminconnect/garmin_tokens.json
-          if [ -f site/data.enc ]; then python crypt.py dec DASH_PASSWORD site/data.enc site/data.json; fi
+          # Lukt ontsleutelen niet (bv. nieuwe code ingesteld), dan gewoon alle dagen opnieuw ophalen
+          if [ -f site/data.enc ]; then python crypt.py dec DASH_PASSWORD site/data.enc site/data.json || rm -f site/data.json; fi
 
       - name: Garmin-data ophalen
         run: python fetch_garmin.py < /dev/null
