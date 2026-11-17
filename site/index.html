@@ -359,7 +359,17 @@ $('sbCollapse').onclick = () => {
 };
 $('menuBtn').onclick = () => setOpen(true);
 $('scrim').onclick = () => setOpen(false);
-$('sbNav').addEventListener('click', e => e.target.closest('a') && setOpen(false));
+// Zijbalk-links vervangen de huidige pagina i.p.v. een geschiedenis-item toe te voegen,
+// zodat de terugveeg van Safari nooit op de agenda (of een andere pagina) uitkomt
+let sbNavigating = false;
+$('sbNav').addEventListener('click', e => {
+  const a = e.target.closest('a');
+  if (!a) return;
+  e.preventDefault();
+  setOpen(false);
+  sbNavigating = true;
+  location.replace(a.getAttribute('href'));
+});
 $('lockBtn').onclick = () => { try { localStorage.removeItem('pw'); localStorage.removeItem('ghToken'); } catch {} location.reload(); };
 addEventListener('resize', layoutSide);
 
@@ -475,8 +485,13 @@ $('dayNext').onclick = () => showDay(1);
 
 // fromOverview: alleen dan history.back(), anders zou terug de site verlaten (bv. bij openen via bladwijzer)
 let fromOverview = false;
-addEventListener('hashchange', e => { fromOverview = !new URL(e.oldURL).hash && !!location.hash; route(); scrollTo(0, 0); });
-const goBack = () => fromOverview ? history.back() : (location.hash = '');
+addEventListener('hashchange', e => {
+  // via de zijbalk is er geen geschiedenis-item om naar terug te gaan
+  fromOverview = !sbNavigating && !new URL(e.oldURL).hash && !!location.hash;
+  sbNavigating = false;
+  route(); scrollTo(0, 0);
+});
+const goBack = () => fromOverview ? history.back() : location.replace('#'); // replace: geen geschiedenis-item erbij
 document.querySelector('.back').onclick = e => { e.preventDefault(); goBack(); };
 
 // Swipen naar links of rechts op een detailpagina = terug (beginscherm-app op iPhone heeft geen terugknop)
@@ -793,6 +808,8 @@ async function refresh() {
 $('refreshBtn').onclick = refresh;
 $('refreshSb').onclick = refresh;
 
+// Altijd op het dashboard starten, ook als de app op de agenda of een andere pagina was afgesloten
+if (location.hash) history.replaceState(null, '', location.pathname + location.search);
 applyView();
 load();
 setInterval(load, 15 * 60 * 1000);
