@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0f0d0b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Fitness Dashboard</title>
+<link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.json">
+<style>
+  :root {
+    --bg: #0f0d0b; --card: rgba(40, 36, 31, .62); --line: rgba(255,255,255,.09);
+    --ink: #f4f1ec; --ink2: #b7b0a6; --muted: #7d766d;
+    --c1: #e8571c; /* oranje: hoofdreeks */
+    --c2: #d9a227; /* geel: tweede reeks */
+    --dim: rgba(255,255,255,.14);
+    --warn: #ffb4a0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; color: var(--ink); font: 14px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: radial-gradient(1200px 700px at 50% -10%, #4a3519 0%, transparent 60%),
+                radial-gradient(800px 600px at 100% 100%, #2a3326 0%, transparent 60%), var(--bg);
+    background-attachment: fixed;
+  }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 24px 16px 40px; }
+  header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+  .logo { width: 40px; height: 40px; border-radius: 50%; background: var(--c1); display: grid; place-items: center; font-weight: 800; font-size: 20px; }
+  header h1 { margin: 0; font-size: 22px; font-weight: 600; flex: 1; }
+  .pill { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 8px 14px; color: var(--ink2); font-size: 12px; backdrop-filter: blur(14px); }
+  .pill.stale { color: var(--warn); border-color: var(--warn); }
+  .seg { display: inline-flex; padding: 3px; gap: 2px; }
+  .seg button { border: 0; border-radius: 999px; padding: 5px 12px; background: none; color: var(--ink2); font: inherit; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+
+  .grid { display: grid; grid-template-columns: 3fr 1fr; gap: 14px; }
+  .main { display: grid; gap: 14px; }
+  .top { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .bottom { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 900px) {
+    .grid, .top, .bottom { grid-template-columns: 1fr; }
+  }
+
+  .card {
+    position: relative; background: var(--card); border: 1px solid var(--line); border-radius: 22px;
+    padding: 16px 18px; backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); min-width: 0;
+  }
+  .card-h { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .icon { width: 38px; height: 38px; border-radius: 12px; background: rgba(255,255,255,.1); display: grid; place-items: center; font-size: 18px; }
+  .card-h h2 { margin: 0; font-size: 17px; font-weight: 600; flex: 1; }
+  .sub { color: var(--muted); font-size: 11px; }
+  .big { font-size: 30px; font-weight: 600; letter-spacing: -.5px; }
+  .big small { font-size: 15px; font-weight: 500; color: var(--ink2); }
+  .row { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: end; gap: 12px; }
+  .note { color: var(--ink2); font-size: 12px; margin-top: 4px; }
+  .center { text-align: center; }
+  .score { font-size: 30px; font-weight: 700; color: var(--c1); }
+  .foot { display: flex; justify-content: space-between; margin-top: 6px; }
+  .foot b { display: block; font-size: 17px; font-weight: 600; }
+  .legend { display: flex; gap: 12px; font-size: 11px; color: var(--ink2); }
+  .legend i { display: inline-block; width: 10px; height: 3px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
+  svg { display: block; width: 100%; height: auto; overflow: visible; }
+  svg text { fill: var(--muted); font-size: 10px; }
+  .goal { height: 6px; border-radius: 3px; background: var(--dim); margin-top: 12px; overflow: hidden; }
+  .goal i { display: block; height: 100%; border-radius: 3px; background: var(--c1); }
+
+  .gauge { display: flex; flex-direction: column; justify-content: space-between; text-align: center;
+    background: linear-gradient(180deg, rgba(60,70,55,.55), rgba(30,28,24,.7)); }
+  .gauge .big { font-size: 40px; }
+  .gauge h3 { margin: 0; font-size: 17px; font-weight: 600; }
+  .err { color: var(--warn); }
+  .acts { list-style: none; margin: 10px 0 0; padding: 0; }
+  .acts li { padding: 6px 0; border-top: 1px solid var(--line); font-size: 13px; }
+  .acts .sub { display: block; font-size: 12px; color: var(--ink2); }
+  #tip { position: fixed; z-index: 9; pointer-events: none; background: var(--ink); color: var(--bg); font-size: 12px;
+    padding: 5px 9px; border-radius: 8px; transform: translate(-50%, calc(-100% - 10px)); white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">F</div>
+    <h1 id="hello">Fitness</h1>
+    <span class="pill seg" role="group" aria-label="Periode">
+      <button data-p="7">7 dagen</button><button data-p="30">30 dagen</button>
+    </span>
+    <span class="pill" id="range"></span>
+    <span class="pill" id="updated"></span>
+  </header>
+
+  <div class="grid">
+    <div class="main">
+      <div class="top">
+        <section class="card">
+          <div class="card-h"><div class="icon">🏃</div><h2>Activiteit</h2><span class="sub">Vandaag</span></div>
+          <div class="row"><div><div class="big" id="steps"></div><div class="note">👣 Stappen</div></div><svg id="act"></svg></div>
+          <div class="goal"><i id="goalBar"></i></div>
+          <div class="note" id="goalTxt"></div>
+        </section>
+        <section class="card">
+          <div class="card-h"><div class="icon">🛏️</div><h2>Slaap</h2><span class="sub per"></span></div>
+          <div class="legend"><span><i style="background:var(--c1)"></i>Totaal</span><span><i style="background:var(--c2)"></i>Diep</span></div>
+          <div class="row"><div><div class="big" id="sleep"></div><div class="note" id="sleepDelta"></div></div><svg id="sleepChart"></svg></div>
+        </section>
+        <section class="card">
+          <div class="card-h"><div class="icon">❤️</div><h2>Hart</h2><span class="sub per"></span></div>
+          <div class="legend"><span><i style="background:var(--c2)"></i>Min–max</span><span><i style="background:var(--c1)"></i>Rust</span></div>
+          <div class="row"><div><div class="big" id="rhr"></div><div class="note">♥ Rusthartslag</div></div><svg id="hrChart"></svg></div>
+        </section>
+      </div>
+      <div class="bottom">
+        <section class="card">
+          <div class="card-h"><h2>Welzijnsscore</h2><span class="sub per"></span></div>
+          <div class="center"><div class="score" id="wScore"></div><div id="wLabel"></div><div class="note" id="wDelta"></div></div>
+          <div class="legend" style="justify-content:center;margin-top:6px"><span><i style="background:var(--c1)"></i>Slaapscore</span><span><i style="background:var(--c2)"></i>Max Body Battery</span></div>
+          <svg id="wChart"></svg>
+          <div class="foot"><div><span class="sub">Slaap gem.</span><b id="sleepAvg"></b></div><div style="text-align:right"><span class="sub">Herstel</span><b id="recovery"></b></div></div>
+        </section>
+        <section class="card">
+          <div class="card-h"><h2>Stress</h2><span class="sub">Vandaag</span></div>
+          <div class="center"><div class="score" id="sScore"></div><div id="sLabel"></div><div class="note">Gemiddeld vandaag (0–100)</div></div>
+          <svg id="sChart"></svg>
+          <div class="foot"><div><span class="sub">Gem. periode</span><b id="sWeek"></b></div><div style="text-align:right"><span class="sub">Rust overdag (zonder slaap)</span><b id="sRest"></b></div></div>
+        </section>
+      </div>
+      <div class="top">
+        <section class="card">
+          <div class="card-h"><div class="icon">💓</div><h2>HRV</h2><span class="sub per"></span></div>
+          <div class="legend"><span><i style="background:var(--c1)"></i>HRV per nacht</span><span><i style="background:var(--dim);height:8px"></i>Normaal bereik</span></div>
+          <div class="row"><div><div class="big" id="hrv"></div><div class="note" id="hrvNote"></div></div><svg id="hrvChart"></svg></div>
+        </section>
+        <section class="card">
+          <div class="card-h"><div class="icon">🫁</div><h2>VO2 max</h2><span class="sub">Laatste jaar</span></div>
+          <div class="row"><div><div class="big" id="vo2"></div><div class="note" id="vo2Note"></div></div><svg id="vo2Chart"></svg></div>
+        </section>
+        <section class="card">
+          <div class="card-h"><div class="icon">🏅</div><h2>Trainingen</h2><span class="sub">Km per maand</span></div>
+          <div class="big" id="actTotal"></div>
+          <svg id="monthChart"></svg>
+          <ul class="acts" id="acts"></ul>
+        </section>
+      </div>
+    </div>
+
+    <section class="card gauge">
+      <div class="sub">Body Battery</div>
+      <svg id="gauge" viewBox="0 0 220 130"></svg>
+      <div><h3 id="gText"></h3><div class="sub">Laatste meting vandaag</div></div>
+    </section>
+  </div>
+</div>
+<div id="tip" hidden></div>
+
+<script>
+// Elke grafiek is een SVG-string; <title> geeft de tooltip (hover op pc, tikken op telefoon).
+const $ = id => document.getElementById(id);
+const NL = ['Z', 'M', 'D', 'W', 'D', 'V', 'Z'];
+const wd = d => NL[new Date(d + 'T12:00').getDay()];
+const fmtH = h => h == null ? '–' : `${Math.floor(h)}u ${Math.round(h % 1 * 60)}m`;
+const avg = a => { a = a.filter(v => v != null); return a.length ? a.reduce((s, v) => s + v, 0) / a.length : null; };
+const v = (x, suf = '') => x == null ? '–' : x + suf;
+const sign = n => (n >= 0 ? '+' : '') + n;
+const month = (d, opt = { month: 'short' }) => new Date(d).toLocaleDateString('nl-NL', opt);
+
+// Gekozen periode onthouden per browser (mag mislukken, dan gewoon 7)
+let period = 7, lastData = null;
+try { period = +localStorage.getItem('period') || 7; } catch {}
+document.querySelectorAll('.seg button').forEach(b => b.onclick = () => {
+  period = +b.dataset.p;
+  try { localStorage.setItem('period', period); } catch {}
+  if (lastData) render(lastData);
+});
+
+// Vloeiende lijn door punten (zoals de golven in het ontwerp)
+function smooth(pts) {
+  return pts.map((p, i) => {
+    if (!i) return `M${p[0]},${p[1]}`;
+    const q = pts[i - 1], mx = (q[0] + p[0]) / 2;
+    return `C${mx},${q[1]} ${mx},${p[1]} ${p[0]},${p[1]}`;
+  }).join('');
+}
+
+function render(D) {
+  lastData = D;
+  const days = D.days.slice(-period), t = days[days.length - 1], n = days.length;
+  // Bij 30 dagen alleen elke 7e dag een label (dagnummer), anders wordt het onleesbaar
+  const lab = (d, i) => n <= 7 ? wd(d.date) : (n - 1 - i) % 7 ? '' : +d.date.slice(8);
+  document.querySelectorAll('.seg button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.p === period));
+  document.querySelectorAll('.per').forEach(e => e.textContent = `Laatste ${n} dagen`);
+  $('hello').textContent = D.name ? `Hoi ${D.name.split(' ')[0]}` : 'Fitness';
+  $('range').textContent = `📅 ${days[0].date} – ${t.date}`;
+
+  // Waarschuwing als de data ouder is dan 2 uur (ophalen mislukt?)
+  const stale = Date.now() - new Date(D.updated) > 2 * 3600e3;
+  $('updated').className = 'pill' + (stale ? ' stale' : '');
+  $('updated').textContent = `${stale ? '⚠ Verouderd: ' : 'Bijgewerkt '}${D.updated.replace('T', ' ')}`;
+  $('updated').title = stale ? 'Ophalen mislukt? Bekijk: journalctl --user -u fitness-fetch -n 20' : '';
+
+  // Activiteit: stappen per uur als blokje, rij = intensiteit
+  $('steps').textContent = t.steps == null ? '–' : t.steps.toLocaleString('nl-NL');
+  const rows = [['Hoog', 2000], ['Matig', 500], ['Laag', 1]];
+  const perHour = Array(24).fill(0);
+  for (const q of D.steps15 || []) perHour[new Date(q.t.endsWith('Z') ? q.t : q.t + 'Z').getHours()] += q.steps || 0; // Garmin geeft GMT
+  let s = '';
+  rows.forEach(([name], r) => s += `<text x="0" y="${r * 18 + 12}">${name}</text>`);
+  perHour.forEach((cnt, h) => {
+    if (!cnt) return;
+    const r = rows.findIndex(([, min]) => cnt >= min);
+    s += `<rect x="${38 + h * 5}" y="${r * 18 + 2}" width="4" height="13" rx="2" fill="var(--c1)"><title>${h}:00 – ${cnt} stappen</title></rect>`;
+  });
+  [0, 6, 12, 18, 24].forEach(h => s += `<text x="${38 + h / 24 * 120}" y="66" text-anchor="middle">${String(h).padStart(2, '0')}</text>`);
+  $('act').setAttribute('viewBox', '0 0 162 70'); $('act').innerHTML = s;
+
+  // Stappendoel
+  const pct = t.steps != null && t.step_goal ? Math.round(t.steps / t.step_goal * 100) : null;
+  $('goalBar').style.width = `${Math.min(pct || 0, 100)}%`;
+  $('goalTxt').textContent = pct == null ? 'Geen stappendoel' : `${pct >= 100 ? '🎉 ' : ''}${pct}% van je doel (${t.step_goal.toLocaleString('nl-NL')})`;
+
+  // Slaap: totaal + diep per nacht
+  $('sleep').innerHTML = t.sleep_h == null ? '–' : `${Math.floor(t.sleep_h)}<small>u</small> ${Math.round(t.sleep_h % 1 * 60)}<small>m</small>`;
+  const prev = avg(days.slice(0, -1).map(d => d.sleep_h));
+  $('sleepDelta').textContent = t.sleep_h != null && prev != null ? `⏳ ${sign(Math.round((t.sleep_h - prev) * 60))}m vs gem.` : '';
+  $('sleepChart').setAttribute('viewBox', '0 0 140 80');
+  $('sleepChart').innerHTML = lines(days, [['sleep_h', 'var(--c1)', 'u slaap'], ['deep_h', 'var(--c2)', 'u diep']], 0, 10, 140, 80, lab);
+
+  // Hart: zwevende balk min–max, streepje = rusthartslag
+  $('rhr').innerHTML = `${v(t.rhr)} <small>BPM</small>`;
+  const lo = 40, hi = Math.max(...days.map(d => d.hr_max || 0), 120);
+  const y = val => 62 - (val - lo) / (hi - lo) * 58;
+  const slot = 126 / n, bw = slot * .66;
+  s = '';
+  days.forEach((d, i) => {
+    const x = i * slot + 2;
+    if (d.hr_min != null && d.hr_max != null)
+      s += `<rect x="${x}" y="${y(d.hr_max)}" width="${bw}" height="${y(d.hr_min) - y(d.hr_max)}" rx="${Math.min(4, bw / 2)}" fill="var(--c2)"><title>${d.date}: ${d.hr_min}–${d.hr_max} bpm, rust ${v(d.rhr)}</title></rect>`;
+    else s += `<rect x="${x}" y="4" width="${bw}" height="58" rx="${Math.min(4, bw / 2)}" fill="none" stroke="var(--dim)"/>`;
+    if (d.rhr != null) s += `<rect x="${x - 1}" y="${y(d.rhr) - 1.5}" width="${bw + 2}" height="3" rx="1.5" fill="var(--c1)" stroke="#1c1a17" stroke-width="1"/>`;
+    s += `<text x="${x + bw / 2}" y="76" text-anchor="middle">${lab(d, i)}</text>`;
+  });
+  $('hrChart').setAttribute('viewBox', '0 0 130 80'); $('hrChart').innerHTML = s;
+
+  // Welzijn: slaapscore + max Body Battery (allebei 0–100)
+  $('wScore').textContent = v(t.sleep_score);
+  $('wLabel').textContent = t.sleep_score == null ? 'Geen slaapscore' : t.sleep_score >= 80 ? 'Goede conditie' : t.sleep_score >= 60 ? 'Redelijk' : 'Matig herstel';
+  const wAvg = avg(days.slice(0, -1).map(d => d.sleep_score));
+  $('wDelta').textContent = t.sleep_score != null && wAvg != null ? `${sign(Math.round(t.sleep_score - wAvg))} t.o.v. gemiddelde` : '';
+  $('wChart').setAttribute('viewBox', '0 0 300 90');
+  $('wChart').innerHTML = lines(days, [['sleep_score', 'var(--c1)', ' slaapscore'], ['bb_high', 'var(--c2)', ' Body Battery']], 30, 100, 300, 90, lab);
+  $('sleepAvg').textContent = fmtH(avg(days.map(d => d.sleep_h)));
+  $('recovery').textContent = v(t.bb_high, '%');
+
+  // Stress: één streepje per meting door de dag
+  $('sScore').textContent = v(t.stress);
+  $('sLabel').textContent = t.stress == null ? 'Geen data' : t.stress <= 25 ? 'Rustig' : t.stress <= 50 ? 'Lage stress' : t.stress <= 75 ? 'Gemiddelde stress' : 'Hoge stress';
+  const st = D.stress_today || [], W = 300, mx = Math.max(...st, 1), peak = st.indexOf(mx);
+  s = st.map((val, i) => {
+    const x = (i + .5) * W / st.length, h = 4 + val / 100 * 66;
+    return `<line x1="${x}" x2="${x}" y1="${40 - h / 2}" y2="${40 + h / 2}" stroke="${i === peak ? 'var(--c1)' : 'rgba(255,255,255,.35)'}" stroke-width="${Math.max(1, W / st.length * .5)}" stroke-linecap="round"><title>stress ${val}</title></line>`;
+  }).join('');
+  $('sChart').setAttribute('viewBox', `0 0 ${W} 80`); $('sChart').innerHTML = s || '<text x="150" y="40" text-anchor="middle">Nog geen stressdata</text>';
+  const avgS = avg(days.map(d => d.stress));
+  $('sWeek').textContent = avgS == null ? '–' : Math.round(avgS);
+  // Garmin telt slaap mee als "rust"; trek de slaaptijd eraf
+  $('sRest').textContent = t.rest_stress_min == null ? '–' : fmtH(Math.max(0, t.rest_stress_min - (t.sleep_h || 0) * 60) / 60);
+
+  // Body Battery-meter: 50 streepjes in een boog
+  const bb = t.bb_now; s = '';
+  for (let i = 0; i <= 50; i++) {
+    const a = Math.PI * (1 - i / 50), r1 = 92, r2 = i % 5 ? 80 : 74;
+    const on = bb != null && i / 50 * 100 <= bb;
+    s += `<line x1="${110 + r1 * Math.cos(a)}" y1="${115 - r1 * Math.sin(a)}" x2="${110 + r2 * Math.cos(a)}" y2="${115 - r2 * Math.sin(a)}" stroke="${on ? '#fff' : 'var(--dim)'}" stroke-width="2.4" stroke-linecap="round"/>`;
+  }
+  s += `<text x="110" y="100" text-anchor="middle" style="fill:var(--ink);font-size:34px;font-weight:600">${v(bb, '%')}</text>`;
+  $('gauge').innerHTML = s;
+  $('gText').textContent = bb == null ? 'Geen data' : bb >= 75 ? 'Volledig opgeladen' : bb >= 50 ? 'Gebalanceerde energie' : bb >= 25 ? 'Energie raakt op' : 'Tijd voor rust';
+
+  // HRV: lijn per nacht met het persoonlijke normale bereik als band
+  const STATUS = { BALANCED: 'In balans', UNBALANCED: 'Uit balans', LOW: 'Laag', POOR: 'Slecht' };
+  $('hrv').innerHTML = `${v(t.hrv)} <small>ms</small>`;
+  $('hrvNote').innerHTML = `${STATUS[t.hrv_status] || 'Geen status'}<br>week ${v(t.hrv_week, ' ms')}`;
+  const hv = days.flatMap(d => [d.hrv, d.hrv_low, d.hrv_high]).filter(x => x != null);
+  const hMin = Math.min(...hv) - 5, hMax = Math.max(...hv) + 5, yh = val => 80 - 14 - (val - hMin) / (hMax - hMin) * 58;
+  $('hrvChart').setAttribute('viewBox', '0 0 140 80');
+  $('hrvChart').innerHTML = !hv.length ? '' : (t.hrv_low != null ? `<rect x="0" y="${yh(t.hrv_high)}" width="140" height="${yh(t.hrv_low) - yh(t.hrv_high)}" rx="4" fill="var(--dim)"><title>Normaal bereik ${t.hrv_low}–${t.hrv_high} ms</title></rect>` : '')
+    + lines(days, [['hrv', 'var(--c1)', ' ms']], hMin, hMax, 140, 80, lab);
+
+  // VO2 max: metingen op een echte tijdlijn van het afgelopen jaar
+  const vo = D.vo2 || [], last = vo[vo.length - 1], now = Date.now(), yearMs = 365 * 864e5;
+  $('vo2').textContent = last ? last.value : '–';
+  $('vo2Note').textContent = last ? `gemeten ${month(last.date, { day: 'numeric', month: 'short' })}` : 'Nog geen meting';
+  const vv = vo.map(p => p.value), vMin = Math.min(...vv) - 2, vMax = Math.max(...vv) + 2;
+  const vx = d => 6 + (1 - (now - new Date(d)) / yearMs) * 128, vy = val => 66 - (val - vMin) / (vMax - vMin) * 58;
+  const vpts = vo.map(p => [vx(p.date), vy(p.value), p]);
+  s = [12, 8, 4, 0].map(m => { const d = new Date(); d.setMonth(d.getMonth() - m); return `<text x="${vx(d)}" y="80" text-anchor="middle">${m ? month(d) : 'nu'}</text>`; }).join('');
+  if (vpts.length > 1) s += `<path d="${smooth(vpts)}" fill="none" stroke="var(--c1)" stroke-width="2" stroke-linecap="round"/>`;
+  s += vpts.map(([x, y, p]) => `<circle cx="${x}" cy="${y}" r="3" fill="var(--c1)" stroke="#1c1a17" stroke-width="2"/><circle cx="${x}" cy="${y}" r="8" fill="transparent"><title>${p.date}: VO2 max ${p.value}</title></circle>`).join('');
+  $('vo2Chart').setAttribute('viewBox', '0 0 140 80'); $('vo2Chart').innerHTML = vo.length ? s : '';
+
+  // Trainingen: km per maand (laatste 12 maanden) + de laatste 3
+  const acts = D.activities || [], months = [];
+  for (let m = 11; m >= 0; m--) { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - m); months.push({ key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, d, km: 0, min: 0, n: 0 }); }
+  for (const a of acts) { const m = months.find(m => m.key === a.start?.slice(0, 7)); if (m) { m.km += a.km; m.min += a.min; m.n++; } }
+  const kmMax = Math.max(...months.map(m => m.km), 1), totKm = months.reduce((s, m) => s + m.km, 0);
+  $('actTotal').innerHTML = `${Math.round(totKm)} <small>km · ${acts.length} trainingen in 12 mnd</small>`;
+  s = months.map((m, i) => {
+    const h = m.km / kmMax * 50, x = i * 23 + 2;
+    return (m.km ? `<rect x="${x}" y="${56 - h}" width="19" height="${h}" rx="4" fill="var(--c1)"/>` : `<rect x="${x}" y="54" width="19" height="2" rx="1" fill="var(--dim)"/>`)
+      + `<rect x="${x}" y="0" width="19" height="70" fill="transparent"><title>${month(m.d, { month: 'long', year: 'numeric' })}: ${m.n} trainingen, ${Math.round(m.km * 10) / 10} km, ${m.min} min</title></rect>`
+      + (i % 2 ? '' : `<text x="${x + 9.5}" y="70" text-anchor="middle">${month(m.d)}</text>`);
+  }).join('');
+  $('monthChart').setAttribute('viewBox', '0 0 278 72'); $('monthChart').innerHTML = s;
+  const ICON = { running: '🏃', cycling: '🚴', walking: '🚶', hiking: '🥾', swimming: '🏊', strength_training: '🏋️' };
+  $('acts').innerHTML = acts.slice(0, 3).map(a => `<li>${ICON[a.type] || '🏅'} ${a.name}
+    <span class="sub">${month(a.start.replace(' ', 'T'), { day: 'numeric', month: 'short', year: 'numeric' })} · ${a.min} min${a.km ? ` · ${a.km} km` : ''}${a.hr ? ` · ♥ ${Math.round(a.hr)}` : ''}</span></li>`).join('') || '<li>Nog geen trainingen</li>';
+}
+
+// Lijngrafiek met gedeelde y-as min..max; label(d, i) = tekst onder elk punt
+function lines(days, series, min, max, W, H, label = d => wd(d.date)) {
+  const x = i => 6 + i * (W - 12) / Math.max(days.length - 1, 1), y = val => H - 14 - (val - min) / (max - min) * (H - 22);
+  let s = days.map((d, i) => `<text x="${x(i)}" y="${H}" text-anchor="middle">${label(d, i)}</text>`).join('');
+  for (const [key, col, unit] of series) {
+    const pts = days.map((d, i) => d[key] == null ? null : [x(i), y(d[key]), d]).filter(Boolean);
+    if (pts.length > 1) s += `<path d="${smooth(pts)}" fill="none" stroke="${col}" stroke-width="2" stroke-linecap="round"/>`;
+    s += pts.map(([px, py, d]) => `<circle cx="${px}" cy="${py}" r="6" fill="transparent"><title>${d.date}: ${d[key]}${unit}</title></circle>`).join('');
+  }
+  return s;
+}
+
+// Tikken (telefoon) of klikken op een grafiekonderdeel toont de tekst uit zijn <title>
+document.addEventListener('click', e => {
+  const title = e.target.closest?.('svg *')?.querySelector(':scope > title');
+  $('tip').hidden = !title;
+  if (title) Object.assign($('tip'), { textContent: title.textContent }).style.cssText = `left:${e.clientX}px;top:${e.clientY}px`;
+});
+addEventListener('scroll', () => $('tip').hidden = true, { passive: true });
+
+// Online staat alleen data.enc (versleuteld); thuis data.json. Zelfde formaat als crypt.py.
+const ITER = 250000;
+const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+async function decrypt(pw, { salt, iv, ct }) {
+  const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveKey']);
+  const key = await crypto.subtle.deriveKey({ name: 'PBKDF2', hash: 'SHA-256', salt: b64(salt), iterations: ITER }, base, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+  return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64(iv) }, key, b64(ct))));
+}
+const getPw = () => { try { return localStorage.getItem('pw'); } catch { return null; } };
+function askPw(enc, wrong) {
+  $('pwForm')?.remove();
+  document.querySelector('.wrap').insertAdjacentHTML('afterbegin', `<form id="pwForm" class="card" style="margin-bottom:14px">
+    <label for="pw">${wrong ? '<span class="err">Verkeerd wachtwoord.</span> ' : ''}Wachtwoord voor je dashboard</label>
+    <div style="display:flex;gap:8px;margin-top:8px"><input id="pw" type="password" autocomplete="current-password" required style="flex:1;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink)">
+    <button class="pill" style="color:var(--ink)">Openen</button></div></form>`);
+  $('pwForm').onsubmit = e => { e.preventDefault(); unlock(enc, $('pw').value); };
+}
+function unlock(enc, pw) {
+  decrypt(pw, enc).then(D => {
+    try { localStorage.setItem('pw', pw); } catch {}
+    $('pwForm')?.remove(); render(D);
+  }).catch(() => askPw(enc, true));
+}
+
+// Data laden, en elke 15 minuten opnieuw (de data wordt elk uur ververst)
+const load = () => fetch('data.json', { cache: 'no-store' })
+  .then(r => r.ok ? r.json().then(D => { document.querySelector('.err')?.remove(); render(D); })
+    : fetch('data.enc', { cache: 'no-store' }).then(r2 => {
+        if (!r2.ok) throw new Error(r2.status);
+        return r2.json().then(enc => getPw() ? unlock(enc, getPw()) : askPw(enc));
+      }))
+  .catch(e => document.querySelector('.err') || document.querySelector('.wrap').insertAdjacentHTML('afterbegin', `<p class="err">Kon de data niet laden (${e.message}).</p>`));
+load();
+setInterval(load, 15 * 60 * 1000);
+</script>
+</body>
+</html>

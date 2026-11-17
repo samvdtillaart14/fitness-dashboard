@@ -1,0 +1,5 @@
+.venv/
+__pycache__/
+# Nooit onversleuteld online:
+site/data.json
+*.json.bak
