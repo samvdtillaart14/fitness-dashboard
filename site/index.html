@@ -36,6 +36,9 @@
   .seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
 
   .grid { display: grid; grid-template-columns: 3fr 1fr; gap: 14px; }
+  .scores { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px; text-align: center; }
+  .scores svg { max-width: 110px; margin: 0 auto; }
+  .scores .lbl { margin-top: 6px; font-size: 11px; font-weight: 600; letter-spacing: .08em; color: var(--ink2); }
   .main { display: grid; gap: 14px; }
   .top { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
   .bottom { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
@@ -107,6 +110,8 @@
     <span class="pill" id="updated"></span>
   </header>
 
+  <section class="card scores" id="scores"></section>
+
   <div class="grid">
     <div class="main">
       <div class="top">
@@ -129,7 +134,7 @@
       </div>
       <div class="bottom">
         <section class="card">
-          <div class="card-h"><h2>Welzijnsscore</h2><span class="sub per"></span></div>
+          <div class="card-h"><h2>Slaapscore</h2><span class="sub per"></span></div>
           <div class="center"><div class="score" id="wScore"></div><div id="wLabel"></div><div class="note" id="wDelta"></div></div>
           <div class="legend" style="justify-content:center;margin-top:6px"><span><i style="background:var(--c1)"></i>Slaapscore</span><span><i style="background:var(--c2)"></i>Max Body Battery</span></div>
           <svg id="wChart"></svg>
@@ -210,10 +215,42 @@ function smooth(pts) {
   }).join('');
 }
 
+// Vier scores van 0–100 voor vandaag (t), berekend uit Garmin-data. all = alle opgehaalde dagen.
+const clamp = x => Math.max(0, Math.min(100, Math.round(x)));
+const wavg = parts => { parts = parts.filter(([x]) => x != null); const w = parts.reduce((s, [, w]) => s + w, 0); return w ? clamp(parts.reduce((s, [x, w]) => s + x * w, 0) / w) : null; };
+function scores(t, all) {
+  const sleep = t.sleep_score ?? null;
+  // Herstel: Garmin Training Readiness als je horloge die heeft, anders zelf berekend
+  const rhrAvg = avg(all.slice(0, -1).map(d => d.rhr));
+  const recovery = t.readiness ?? wavg([
+    [t.bb_high, 2],
+    [t.hrv != null && t.hrv_low != null ? clamp((t.hrv - (t.hrv_low - 10)) / (t.hrv_high - t.hrv_low + 10) * 100) : null, 1],
+    [t.rhr != null && rhrAvg != null ? clamp(75 + (rhrAvg - t.rhr) * 10) : null, 1], // gemiddeld = 75, elke bpm lager +10
+  ]);
+  const activity = t.steps == null ? null : clamp(50 * Math.min(1, t.steps / (t.step_goal || 10000)) + 50 * Math.min(1, (t.int_min || 0) / (150 / 7)));
+  const wellness = wavg([[sleep, 1], [recovery, 1], [activity, 1], [t.stress != null ? 100 - t.stress : null, 1]]);
+  return { sleep, recovery, activity, wellness };
+}
+
 function render(D) {
   document.body.classList.remove("loading");
   lastData = D;
   const days = D.days.slice(-period), t = days[days.length - 1], n = days.length;
+
+  // Scores bovenin: ring per score, tik voor uitleg
+  const S = scores(t, D.days), C = 2 * Math.PI * 42;
+  $('scores').innerHTML = [
+    ['Slaap', S.sleep, 'Slaapscore van Garmin'],
+    ['Herstel', S.recovery, t.readiness != null ? 'Training Readiness van Garmin' : 'Body Battery (50%) + HRV t.o.v. normaal (25%) + rusthartslag t.o.v. gemiddelde (25%)'],
+    ['Activiteit', S.activity, `Stappen t.o.v. doel (50%) + intensiteitsminuten t.o.v. 21/dag (50%): ${v(t.int_min)} min`],
+    ['Welzijn', S.wellness, 'Gemiddelde van slaap, herstel, activiteit en rust (100 − stress)'],
+  ].map(([name, val, how]) => `<div><svg viewBox="0 0 100 100" role="img" aria-label="${name} ${v(val)} van 100">
+      <circle cx="50" cy="50" r="42" fill="none" stroke="var(--dim)" stroke-width="9"/>
+      <circle cx="50" cy="50" r="42" fill="none" stroke="var(--c1)" stroke-width="9" stroke-linecap="round" transform="rotate(-90 50 50)"
+        stroke-dasharray="${C * (val || 0) / 100} ${C}"/>
+      <text x="50" y="59" text-anchor="middle" style="fill:var(--ink);font-size:26px;font-weight:600">${v(val)}</text>
+      <circle cx="50" cy="50" r="50" fill="transparent"><title>${name}: ${how}</title></circle>
+    </svg><div class="lbl">${name.toUpperCase()}</div></div>`).join('');
   // Bij 30 dagen alleen elke 7e dag een label (dagnummer), anders wordt het onleesbaar
   const lab = (d, i) => n <= 7 ? wd(d.date) : (n - 1 - i) % 7 ? '' : +d.date.slice(8);
   document.querySelectorAll('.seg button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.p === period));
@@ -225,7 +262,7 @@ function render(D) {
   const stale = Date.now() - new Date(D.updated) > 2 * 3600e3;
   $('updated').className = 'pill' + (stale ? ' stale' : '');
   $('updated').textContent = `${stale ? '⚠ Verouderd: ' : 'Bijgewerkt '}${D.updated.replace('T', ' ')}`;
-  $('updated').title = stale ? 'Ophalen mislukt? Bekijk: journalctl --user -u fitness-fetch -n 20' : '';
+  $('updated').title = stale ? 'Ophalen mislukt? Bekijk het tabblad Actions op github.com/samvdtillaart14/fitness-dashboard' : '';
 
   // Activiteit: stappen per uur als blokje, rij = intensiteit
   $('steps').textContent = t.steps == null ? '–' : t.steps.toLocaleString('nl-NL');

@@ -42,7 +42,11 @@ def day(g, d):
     sleep = safe(g.get_sleep_data, d, default={}).get("dailySleepDTO") or {}
     score = ((sleep.get("sleepScores") or {}).get("overall") or {}).get("value")
     hrv = safe(g.get_hrv_data, d, default={}).get("hrvSummary") or {}
+    ready = safe(g.get_training_readiness, d, default=[])  # leeg op horloges zonder Training Readiness
     return {
+        # intensiteitsminuten zoals Garmin ze telt: zwaar telt dubbel
+        "int_min": (s.get("moderateIntensityMinutes") or 0) + 2 * (s.get("vigorousIntensityMinutes") or 0),
+        "readiness": ready[0].get("score") if ready else None,
         "hrv": hrv.get("lastNightAvg"),
         "hrv_week": hrv.get("weeklyAvg"),
         "hrv_status": hrv.get("status"),
@@ -78,7 +82,7 @@ def main():
         old = {}
     fresh_from = (today - timedelta(days=1)).isoformat()
     print("Data ophalen voor", dates[0], "t/m", dates[-1])
-    days = [old[d] if d < fresh_from and d in old and "hrv" in old[d] else day(g, d) for d in dates]
+    days = [old[d] if d < fresh_from and d in old and "int_min" in old[d] else day(g, d) for d in dates]
 
     t = dates[-1]
     # Stappen per kwartier (voor de activiteitsbalk)
