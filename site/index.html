@@ -428,11 +428,16 @@ document.querySelector('.back').onclick = e => { e.preventDefault(); goBack(); }
 // Swipen naar links of rechts op een detailpagina = terug (beginscherm-app op iPhone heeft geen terugknop)
 let touch = null;
 addEventListener('touchstart', e => touch = e.touches.length === 1 ? [e.touches[0].clientX, e.touches[0].clientY] : null, { passive: true });
+// Horizontale swipe: lade open → dicht; detailpagina → terug; overzicht (mobiel) → lade open
 addEventListener('touchend', e => {
-  if (!touch || $('detail').hidden) return;
+  if (!touch) return;
   const dx = e.changedTouches[0].clientX - touch[0], dy = e.changedTouches[0].clientY - touch[1];
   touch = null;
-  if (Math.abs(dx) > 80 && Math.abs(dy) < Math.abs(dx) / 2) goBack();
+  const cls = document.body.classList;
+  if (Math.abs(dx) <= 80 || Math.abs(dy) >= Math.abs(dx) / 2 || cls.contains('locked') || cls.contains('loading')) return;
+  if (cls.contains('sb-open')) setOpen(false);
+  else if (!$('detail').hidden) goBack();
+  else if (cls.contains('drawer')) setOpen(true);
 }, { passive: true });
 
 function render(D) {
