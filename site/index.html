@@ -148,7 +148,7 @@
   /* Mobiel: lade die over de pagina schuift */
   #menuBtn { display: none; cursor: pointer; color: var(--ink); font-size: 16px; }
   body.drawer #menuBtn { display: inline-block; }
-  body.drawer #side { width: 270px; transform: translateX(-100%); }
+  body.drawer #side { width: 270px; transform: translateX(-100%); transition: width .45s cubic-bezier(.34, 1.56, .64, 1), transform .28s ease-out; }
   body.drawer.sb-open #side { transform: none; box-shadow: 0 0 40px rgba(0,0,0,.6); }
   #scrim { position: fixed; inset: 0; z-index: 5; background: rgba(0,0,0,.5); }
   @media (prefers-reduced-motion: reduce) { #side { transition: none; } }
@@ -482,8 +482,40 @@ document.querySelector('.back').onclick = e => { e.preventDefault(); goBack(); }
 // Swipen naar links of rechts op een detailpagina = terug (beginscherm-app op iPhone heeft geen terugknop)
 let touch = null;
 addEventListener('touchstart', e => touch = e.touches.length === 1 ? [e.touches[0].clientX, e.touches[0].clientY] : null, { passive: true });
+// Lade volgt je vinger; voorbij helemaal open rekt hij uit met elastiek-weerstand en veert terug
+const SB_W = 270, STRETCH = 90;
+const rubber = x => (1 - 1 / (x * 0.55 / STRETCH + 1)) * STRETCH; // hoe verder, hoe zwaarder (zoals iOS)
+let drag = null;
+addEventListener('touchmove', e => {
+  if (!touch || e.touches.length !== 1) return;
+  const cls = document.body.classList, x = e.touches[0].clientX, dx = x - touch[0], dy = e.touches[0].clientY - touch[1];
+  if (!drag) {
+    if (Math.abs(dx) < 10 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
+    if (!cls.contains('drawer') || cls.contains('locked') || cls.contains('loading')) return;
+    const open = cls.contains('sb-open');
+    if (!open && (location.hash || dx < 0)) return; // dicht: alleen naar rechts slepen op het overzicht
+    drag = { base: open ? 0 : -SB_W, pos: open ? 0 : -SB_W, v: 0, lastX: x, lastT: e.timeStamp };
+    $('side').style.transition = 'none'; $('scrim').hidden = false;
+  }
+  e.preventDefault(); // niet tegelijk de pagina laten scrollen
+  const raw = drag.base + dx;
+  drag.pos = Math.max(-SB_W, Math.min(0, raw));
+  $('side').style.transform = `translateX(${drag.pos}px)`;
+  $('side').style.width = `${SB_W + (raw > 0 ? rubber(raw) : 0)}px`;
+  $('scrim').style.opacity = (drag.pos + SB_W) / SB_W;
+  drag.v = (x - drag.lastX) / Math.max(1, e.timeStamp - drag.lastT); drag.lastX = x; drag.lastT = e.timeStamp;
+}, { passive: false });
+function endDrag() {
+  const d = drag; drag = null; touch = null;
+  for (const k of ['transition', 'transform', 'width']) $('side').style[k] = '';
+  $('scrim').style.opacity = '';
+  setOpen(d.v > 0.5 ? true : d.v < -0.5 ? false : d.pos > -SB_W / 2); // snelle veeg telt, anders voorbij de helft
+}
+addEventListener('touchcancel', () => drag ? endDrag() : (touch = null), { passive: true });
+
 // Horizontale swipe: lade open → dicht; detailpagina → terug; overzicht (mobiel) → lade open
 addEventListener('touchend', e => {
+  if (drag) return endDrag();
   if (!touch) return;
   const dx = e.changedTouches[0].clientX - touch[0], dy = e.changedTouches[0].clientY - touch[1];
   touch = null;
