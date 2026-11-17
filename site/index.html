@@ -160,6 +160,12 @@
   #pad .ok { background: var(--c1); border-color: var(--c1); }
   #lock.busy #pad { opacity: .4; }
   @media (prefers-reduced-motion: reduce) { #dots.shake { animation: none; } }
+  /* Agenda: pc = Google-week, telefoon (lade) = eigen dagweergave */
+  body:not(.drawer) #day, body.drawer #agenda iframe { display: none; }
+  #day h2 { flex: 1; text-align: center; }
+  #day h2 .sub { display: block; font-weight: 400; }
+  #dayL li { display: flex; gap: 12px; padding: 10px 0; font-size: 14px; }
+  #dayL li b { min-width: 92px; font-weight: 600; color: var(--c1); }
   #tip { position: fixed; z-index: 9; pointer-events: none; background: var(--ink); color: var(--bg); font-size: 12px;
     padding: 5px 9px; border-radius: 8px; transform: translate(-50%, calc(-100% - 10px)); white-space: nowrap; }
 </style>
@@ -210,6 +216,11 @@
   <!-- Afspraken zijn alleen zichtbaar als je in deze browser bij Google bent ingelogd -->
   <section class="card" id="agenda" hidden>
     <iframe title="Google Agenda" src="https://calendar.google.com/calendar/embed?src=samvdtillaart%40gmail.com&ctz=Europe%2FAmsterdam" style="border:0;width:100%;height:75vh;border-radius:12px"></iframe>
+    <div id="day">
+      <div class="card-h"><button class="pill" id="dayPrev" type="button" aria-label="Vorige dag">‹</button>
+        <h2 id="dayT"></h2><button class="pill" id="dayNext" type="button" aria-label="Volgende dag">›</button></div>
+      <ul class="acts" id="dayL" aria-live="polite"></ul>
+    </div>
   </section>
 
   <div class="grid">
@@ -409,6 +420,7 @@ function route() {
   document.body.classList.toggle('detail', !!view);
   document.querySelectorAll('#sbNav a').forEach(a => a.dataset.v === view ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current'));
   document.querySelectorAll('[data-cat]').forEach(c => c.hidden = !!view && !c.dataset.cat.split(' ').includes(view));
+  if (agenda) { for (const k in calCache) delete calCache[k]; showDay(); } // bij openen altijd vers ophalen
   if (!view || agenda || !lastData) return;
   const [name, key] = VIEWS[view], all = lastData.days, days = all.slice(-period), t = days[days.length - 1], S = scores(t, all);
   $('dTitle').textContent = name;
@@ -425,6 +437,35 @@ function route() {
   $('dTrend').setAttribute('viewBox', `0 0 ${W} 90`);
   $('dTrend').innerHTML = lines(days.map(d => ({ date: d.date, score: scores(d, all)[key] })), [['score', 'var(--c1)', ` ${name.toLowerCase()}`]], 0, 100, W, 90, lab);
 }
+// Agenda-dagweergave: live uit Google via een eigen Apps Script-webapp (adres staat in de versleutelde data)
+let calDay = 0;
+const calCache = {};
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => `&#${c.charCodeAt(0)};`); // titels komen van buiten (uitnodigingen)
+const hm = s => new Date(s).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
+async function showDay(step = 0) {
+  const me = calDay += step, from = new Date();
+  from.setHours(0, 0, 0, 0); from.setDate(from.getDate() + me);
+  const to = new Date(from); to.setDate(to.getDate() + 1);
+  const date = from.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' });
+  $('dayT').innerHTML = `${{ '-1': 'Gisteren', 0: 'Vandaag', 1: 'Morgen' }[me] ?? date}<span class="sub">${Math.abs(me) > 1 ? '' : date}</span>`;
+  const url = lastData?.cal, key = from.toISOString();
+  if (!url) return $('dayL').innerHTML = '<li class="sub">Agenda is nog niet gekoppeld</li>';
+  $('dayL').innerHTML = '<li class="sub">Laden…</li>';
+  try {
+    calCache[key] ??= fetch(`${url}?from=${key}&to=${to.toISOString()}`).then(r => r.ok ? r.json() : Promise.reject());
+    const ev = await calCache[key];
+    if (me !== calDay) return; // intussen verder geswipet
+    $('dayL').innerHTML = ev.map(e => `<li><b>${e.allDay ? 'Hele dag' : `${hm(e.start)}–${hm(e.end)}`}</b>
+      <span>${esc(e.title)}${e.location ? `<span class="sub">${esc(e.location)}</span>` : ''}</span></li>`).join('')
+      || '<li class="sub">Geen afspraken</li>';
+  } catch {
+    delete calCache[key];
+    if (me === calDay) $('dayL').innerHTML = '<li class="sub">Kon de agenda niet laden</li>';
+  }
+}
+$('dayPrev').onclick = () => showDay(-1);
+$('dayNext').onclick = () => showDay(1);
+
 // fromOverview: alleen dan history.back(), anders zou terug de site verlaten (bv. bij openen via bladwijzer)
 let fromOverview = false;
 addEventListener('hashchange', e => { fromOverview = !new URL(e.oldURL).hash && !!location.hash; route(); scrollTo(0, 0); });
@@ -442,6 +483,7 @@ addEventListener('touchend', e => {
   const cls = document.body.classList;
   if (Math.abs(dx) <= 80 || Math.abs(dy) >= Math.abs(dx) / 2 || cls.contains('locked') || cls.contains('loading')) return;
   if (cls.contains('sb-open')) setOpen(false);
+  else if (location.hash === '#agenda' && cls.contains('drawer')) showDay(dx < 0 ? 1 : -1); // naar links = morgen
   else if (location.hash) goBack();
   else if (cls.contains('drawer')) setOpen(true);
 }, { passive: true });

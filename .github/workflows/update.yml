@@ -23,6 +23,7 @@ jobs:
     env:
       TOKEN_KEY: ${{ secrets.TOKEN_KEY }}
       DASH_PASSWORD: ${{ secrets.DASH_PASSWORD }}
+      CAL_URL: ${{ secrets.CAL_URL }}
     steps:
       - uses: actions/checkout@v4
 

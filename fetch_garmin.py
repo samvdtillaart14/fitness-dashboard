@@ -1,6 +1,7 @@
 """Haalt de laatste 30 dagen Garmin-data op en schrijft site/data.json."""
 
 import json
+import os
 from datetime import date, datetime, timedelta
 from getpass import getpass
 from pathlib import Path
@@ -123,6 +124,8 @@ def main():
         "stress_today": stress_vals,
         "activities": activities,
         "vo2": vo2,
+        # Geheim adres van de Apps Script-agenda; komt alleen versleuteld online
+        "cal": os.environ.get("CAL_URL"),
     }
     OUT.parent.mkdir(exist_ok=True)
     OUT.write_text(json.dumps(data, indent=1))
